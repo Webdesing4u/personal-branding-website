@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #020617;
+}
+
+/* Print styles for CV download */
+@media print {
+  header,
+  footer,
+  nav,
+  button {
+    display: none !important;
+  }
+  body,
+  .bg-slate-950 {
+    background: white !important;
+    color: black !important;
+  }
+}

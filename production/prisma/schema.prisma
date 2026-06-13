@@ -1,0 +1,221 @@
+// Production schema — matches the technical documentation (Section 6) exactly.
+// 14 tables · uuid PKs · indexed slugs · snake_case table names
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── 6.1 Users ────────────────────────────────────────────────
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  fullName     String     @map("full_name") @db.VarChar(100)
+  email        String     @unique @db.VarChar(150)
+  passwordHash String     @map("password_hash")
+  role         String     @default("admin") @db.VarChar(20)
+  isActive     Boolean    @default(true) @map("is_active")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  posts        BlogPost[]
+
+  @@map("users")
+}
+
+// ── 6.2 Blog ─────────────────────────────────────────────────
+model BlogCategory {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String     @db.VarChar(100)
+  slug      String     @unique @db.VarChar(120)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  posts     BlogPost[]
+
+  @@index([slug])
+  @@map("blog_categories")
+}
+
+model BlogTag {
+  id        String        @id @default(uuid()) @db.Uuid
+  name      String        @db.VarChar(50)
+  slug      String        @unique @db.VarChar(80)
+  createdAt DateTime      @default(now()) @map("created_at")
+  posts     BlogPostTag[]
+
+  @@index([slug])
+  @@map("blog_tags")
+}
+
+model BlogPost {
+  id              String        @id @default(uuid()) @db.Uuid
+  title           String        @db.VarChar(200)
+  slug            String        @unique @db.VarChar(220)
+  excerpt         String?
+  content         String
+  featuredImage   String?       @map("featured_image")
+  status          String        @default("draft") @db.VarChar(20) // draft | published
+  authorId        String        @map("author_id") @db.Uuid
+  categoryId      String?       @map("category_id") @db.Uuid
+  metaTitle       String?       @map("meta_title") @db.VarChar(200)
+  metaDescription String?       @map("meta_description")
+  publishedAt     DateTime?     @map("published_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  // Explicit referential actions:
+  //  - Deleting a user is BLOCKED while they have posts (no accidental content loss)
+  //  - Deleting a category detaches posts (SetNull), never deletes them
+  author          User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  category        BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags            BlogPostTag[]
+
+  @@index([slug])
+  @@index([status, publishedAt])
+  @@map("blog_posts")
+}
+
+model BlogPostTag {
+  id     String   @id @default(uuid()) @db.Uuid
+  postId String   @map("post_id") @db.Uuid
+  tagId  String   @map("tag_id") @db.Uuid
+  post   BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId])
+  @@map("blog_post_tags")
+}
+
+// ── 6.3 Portfolio ────────────────────────────────────────────
+model PortfolioCategory {
+  id        String             @id @default(uuid()) @db.Uuid
+  name      String             @db.VarChar(100)
+  slug      String             @unique @db.VarChar(120)
+  createdAt DateTime           @default(now()) @map("created_at")
+  projects  PortfolioProject[]
+
+  @@index([slug])
+  @@map("portfolio_categories")
+}
+
+model PortfolioProject {
+  id               String             @id @default(uuid()) @db.Uuid
+  title            String             @db.VarChar(200)
+  slug             String             @unique @db.VarChar(220)
+  shortDescription String?            @map("short_description")
+  fullDescription  String?            @map("full_description")
+  featuredImage    String?            @map("featured_image")
+  projectUrl       String?            @map("project_url")
+  githubUrl        String?            @map("github_url")
+  techStack        String[]           @map("tech_stack")
+  categoryId       String?            @map("category_id") @db.Uuid
+  isFeatured       Boolean            @default(false) @map("is_featured")
+  status           String             @default("published") @db.VarChar(20)
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  category         PortfolioCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  images           PortfolioImage[]
+
+  @@index([slug])
+  @@index([isFeatured])
+  @@map("portfolio_projects")
+}
+
+model PortfolioImage {
+  id           String           @id @default(uuid()) @db.Uuid
+  projectId    String           @map("project_id") @db.Uuid
+  imageUrl     String           @map("image_url")
+  altText      String?          @map("alt_text") @db.VarChar(150)
+  displayOrder Int              @default(0) @map("display_order")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  project      PortfolioProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("portfolio_images")
+}
+
+// ── 6.4 Business ─────────────────────────────────────────────
+model BusinessCategory {
+  id        String            @id @default(uuid()) @db.Uuid
+  name      String            @db.VarChar(100)
+  slug      String            @unique @db.VarChar(120)
+  createdAt DateTime          @default(now()) @map("created_at")
+  ventures  BusinessVenture[]
+
+  @@index([slug])
+  @@map("business_categories")
+}
+
+model BusinessVenture {
+  id          String            @id @default(uuid()) @db.Uuid
+  name        String            @db.VarChar(200)
+  slug        String            @unique @db.VarChar(220)
+  industry    String?           @db.VarChar(150)
+  description String?
+  role        String?           @db.VarChar(150)
+  websiteUrl  String?           @map("website_url")
+  logoUrl     String?           @map("logo_url")
+  status      String            @default("active") @db.VarChar(20)
+  categoryId  String?           @map("category_id") @db.Uuid
+  isFeatured  Boolean           @default(false) @map("is_featured")
+  startDate   DateTime?         @map("start_date") @db.Date
+  endDate     DateTime?         @map("end_date") @db.Date
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  category    BusinessCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([slug])
+  @@map("business_ventures")
+}
+
+// ── 6.5 Gallery ──────────────────────────────────────────────
+model GalleryImage {
+  id           String   @id @default(uuid()) @db.Uuid
+  title        String?  @db.VarChar(150)
+  imageUrl     String   @map("image_url")
+  category     String?  @db.VarChar(100)
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("gallery_images")
+}
+
+// ── 6.6 Contact Messages ─────────────────────────────────────
+model ContactMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(120)
+  email     String   @db.VarChar(150)
+  subject   String   @db.VarChar(200)
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  ipAddress String?  @map("ip_address") @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([isRead])
+  @@map("contact_messages")
+}
+
+// ── 6.7 Skills ───────────────────────────────────────────────
+model SkillCategory {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(100)
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  skills       Skill[]
+
+  @@map("skill_categories")
+}
+
+model Skill {
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String        @db.VarChar(100)
+  level        String?       @db.VarChar(50)
+  icon         String?
+  categoryId   String        @map("category_id") @db.Uuid
+  displayOrder Int           @default(0) @map("display_order")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  category     SkillCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("skills")
+}
